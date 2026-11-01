@@ -12,9 +12,7 @@ In fact, I think I can just copy-paste it!
 
 ```rust ,ignore
 pub fn peek_front(&self) -> Option<&T> {
-    self.head.as_ref().map(|node| {
-        &node.elem
-    })
+    self.head.as_ref().map(|node| &node.elem)
 }
 ```
 
@@ -64,19 +62,22 @@ fn borrow_mut<'a>(&'a self) -> RefMut<'a, T>
 
 In the layout section we said:
 
-> Rather than enforcing this statically, RefCell enforces them at runtime.
-> If you break the rules, RefCell will just panic and crash the program.
-> Why does it return these Ref and RefMut things? Well, they basically behave
-> like `Rc`s but for borrowing. Also they keep the RefCell borrowed until they go out
-> of scope. **We'll get to that later.**
+> `RefCell` checks borrowing rules at runtime: `borrow` and `borrow_mut` panic
+> when a requested borrow would break those rules, while `try_borrow` and
+> `try_borrow_mut` return errors. The returned `Ref` and `RefMut` values are
+> guards that keep the borrow active until they are dropped. **We'll get to that later.**
 
 It's later.
 
-`Ref` and `RefMut` implement `Deref` and `DerefMut` respectively. So for most
-intents and purposes they behave *exactly* like `&T` and `&mut T`. However,
-because of how those traits work, the reference that's returned is connected
-to the lifetime of the Ref, and not the actual RefCell. This means that the Ref
-has to be sitting around as long as we keep the reference around.
+Rust 2024 drops some tail-expression temporaries earlier than older editions.
+That does not let a returned reference outlive a `Ref` guard: the guard still
+has to stay alive for every use of a reference borrowed through it.
+
+`Ref` and `RefMut` implement `Deref` and `DerefMut`, so Rust lets us use them
+much like `&T` and `&mut T`. But each one is a guard, not just a reference:
+the borrow must stay active for as long as the guard is alive. The reference
+you access through it cannot outlive that guard, which is why returning a bare
+`&T` from `peek_front` does not work.
 
 This is in fact necessary for correctness. When a Ref gets dropped, it tells
 the RefCell that it's not borrowed anymore. So if we *did* manage to hold onto our
@@ -96,7 +97,7 @@ But... what if we just give up on totally hiding our implementation details?
 What if we returns Refs?
 
 ```rust ,ignore
-pub fn peek_front(&self) -> Option<Ref<T>> {
+pub fn peek_front(&self) -> Option<Ref<'_, T>> {
     self.head.as_ref().map(|node| {
         node.borrow()
     })
@@ -109,7 +110,7 @@ pub fn peek_front(&self) -> Option<Ref<T>> {
 error[E0412]: cannot find type `Ref` in this scope
   --> src/fourth.rs:63:40
    |
-63 |     pub fn peek_front(&self) -> Option<Ref<T>> {
+63 |     pub fn peek_front(&self) -> Option<Ref<'_, T>> {
    |                                        ^^^ not found in this scope
 help: possible candidates are found in other modules, you can import them into scope
    |
@@ -168,7 +169,7 @@ there's no None-like case, but I digress.
 It's cool and that's all that matters to me. *I need this*.
 
 ```rust ,ignore
-pub fn peek_front(&self) -> Option<Ref<T>> {
+pub fn peek_front(&self) -> Option<Ref<'_, T>> {
     self.head.as_ref().map(|node| {
         Ref::map(node.borrow(), |node| &node.elem)
     })

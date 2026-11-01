@@ -1,6 +1,6 @@
 [book]
 title = "Learning Rust With Entirely Too Many Linked Lists"
-author = "Aria Desires"
+authors = ["Aria Desires"]
 description = "Learning Rust With Entirely Too Many Linked Lists"
 
 [build]
@@ -12,3 +12,6 @@ git-repository-url = "https://github.com/rust-unofficial/too-many-lists"
 
 [output.html.search]
 limit-results = 30
+
+[rust]
+edition = "2024"

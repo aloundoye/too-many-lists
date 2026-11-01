@@ -4,24 +4,24 @@ One reason to use an immutable linked list is to share data across threads.
 After all, shared mutable state is the root of all evil, and one way to solve
 that is to kill the *mutable* part forever.
 
-Except our list isn't thread-safe at all. In order to be thread-safe, we need
-to fiddle with reference counts *atomically*. Otherwise, two threads could
-try to increment the reference count, *and only one would happen*. Then the
-list could get freed too soon!
+Our `Rc`-based list cannot be sent or shared between threads. Its reference
+count uses ordinary, non-atomic updates, so concurrent updates could corrupt
+the count and free a node while another owner still uses it.
 
-In order to get thread safety, we have to use *Arc*. Arc is completely identical
-to Rc except for the fact that reference counts are modified atomically. This
-has a bit of overhead if you don't need it, so Rust exposes both.
-All we need to do to make our list is replace every reference to Rc with
-`std::sync::Arc`. That's it. We're thread safe. Done!
+`Arc` is the thread-safe reference-counted pointer: it updates the shared
+reference count atomically. That costs more than `Rc`, so Rust provides both.
+For this immutable list, we can replace `Rc` with `std::sync::Arc` to share the
+ownership count safely across threads. The data is thread-safe only when the
+node contents are too: `Arc<T>` is `Send` and `Sync` only when `T` is both
+`Send` and `Sync`. `Arc` makes shared ownership thread-safe; it does not make
+an unsafe inner value safe.
 
 But this raises an interesting question: how do we *know* if a type is
 thread-safe or not? Can we accidentally mess up?
 
-No! You can't mess up thread-safety in Rust!
-
-The reason this is the case is because Rust models thread-safety in a
-first-class way with two traits: `Send` and `Sync`.
+Rust's type system catches many thread-safety mistakes in safe code, but it
+cannot verify an incorrect `unsafe impl`. The two traits Rust uses to express
+thread-safety are `Send` and `Sync`.
 
 A type is *Send* if it's safe to *move* to another thread. A type is *Sync* if
 it's safe to *share* between multiple threads. That is, if `T` is Sync, `&T` is
@@ -38,9 +38,10 @@ totally composed of Send and Sync types. It's similar to how you can only
 implement Copy if you're only made of Copy types, but then we just go ahead
 and implement it automatically if you are.
 
-Almost every type is Send and Sync. Most types are Send because they totally
-own their data. Most types are Sync because the only way to share data across
-threads is to put them behind a shared reference, which makes them immutable!
+Almost every ordinary type is `Send` and `Sync`. A type that owns its data
+can usually be moved between threads when its contents are `Send`. Shared
+references prevent ordinary mutation, and interior-mutability types must use
+appropriate synchronization before they can be `Sync`.
 
 However there are special types that violate these properties: those that have
 *interior mutability*. So far we've only really interacted with *inherited
@@ -48,18 +49,19 @@ mutability* (AKA external mutability): the mutability of a value is inherited
 from the mutability of its container. That is, you can't just randomly mutate
 some field of a non-mutable value because you feel like it.
 
-Interior mutability types violate this: they let you mutate through a shared
-reference. There are two major classes of interior mutability: cells, which
-only work in a single-threaded context; and locks, which work in a
-multi-threaded context. For obvious reasons, cells are cheaper when you can
-use them. There's also atomics, which are primitives that act like a lock.
+Interior-mutability types allow mutation through a shared reference. `Cell`
+and `RefCell` are single-threaded tools; `Mutex` and `RwLock` coordinate access
+between threads. Atomics provide individual operations on shared values, such
+as incrementing a counter. They are not locks: a lock coordinates access to a
+larger piece of data, while an atomic operation applies to its atomic value.
 
-So what does all of this have to do with Rc and Arc? Well, they both use
-interior mutability for their *reference count*. Worse, this reference count
-is shared between every instance! Rc just uses a cell, which means it's not
-thread safe. Arc uses an atomic, which means it *is* thread safe. Of course,
-you can't magically make a type thread safe by putting it in Arc. Arc can only
-derive thread-safety like any other type.
+So what does all of this have to do with `Rc` and `Arc`? Their shared
+reference counts use interior mutability. `Rc` updates its count without
+synchronization, so it cannot be shared between threads. `Arc` uses atomic
+operations for that count, which makes shared ownership safe across threads
+when `T: Send + Sync`. The atomics protect the count, not the contents of `T`.
+For example, `Arc<RefCell<T>>` is still not thread-safe; use a synchronization
+type such as `Mutex<T>` when shared mutation across threads is needed.
 
 I really really really don't want to get into the finer details of atomic
 memory models or non-derived Send implementations. Needless to say, as you get

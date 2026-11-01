@@ -39,7 +39,7 @@ impl List {
 
     pub fn push(&mut self, elem: i32) {
         let new_node = Box::new(Node {
-            elem: elem,
+            elem,
             next: mem::replace(&mut self.head, None),
         });
 
@@ -71,6 +71,8 @@ This is marginally better, but the big wins will come from Option's methods.
 
 First, `mem::replace(&mut option, None)` is such an incredibly
 common idiom that Option actually just went ahead and made it a method: `take`.
+It returns the previous option by value and leaves `None` in its place.
+This is the same replacement mechanism we used with our custom `Link`.
 
 ```rust ,ignore
 pub struct List {
@@ -91,7 +93,7 @@ impl List {
 
     pub fn push(&mut self, elem: i32) {
         let new_node = Box::new(Node {
-            elem: elem,
+            elem,
             next: self.head.take(),
         });
 

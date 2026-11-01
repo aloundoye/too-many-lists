@@ -95,7 +95,7 @@ fn main() {
 }
 ```
 >
-> This will print `Cons(1, Box(Cons(2, Box(Nil))))`.
+> This will print `Cons(1, Cons(2, Nil))`; `Box` debug formatting forwards to its contents.
 >
 > Recursive structures must be boxed, because if the definition of Cons looked like this:
 >
@@ -164,7 +164,7 @@ enum Foo {
 }
 ```
 
-A Foo will need to store some integer to indicate which *variant* of the enum it
+A Foo conceptually needs a way to indicate which *variant* of the enum it
 represents (`D1`, `D2`, .. `Dn`). This is the *tag* of the enum. It will also
 need enough space to store the *largest* of `T1`, `T2`, .. `Tn` (plus some extra
 space to satisfy alignment requirements).
@@ -253,8 +253,10 @@ Can you think of other enums and types that could do this kind of optimization?
 There's actually a lot! This is why Rust leaves enum layout totally unspecified.
 There are a few more complicated enum layout optimizations that Rust will do for
 us, but the null pointer one is definitely the most important!
-It means `&`, `&mut`, `Box`, `Rc`, `Arc`, `Vec`, and
-several other important types in Rust have no overhead when put in an `Option`!
+For sized `T`, Rust documents this guarantee for `Option<&T>`,
+`Option<&mut T>`, and `Option<Box<T>>`, among other types. Custom enums
+can benefit too, but their exact representation is not guaranteed.
+Do not assume this is a general guarantee for every pointer-containing type!
 (We'll get to most of these in due time.)
 
 So how do we avoid the extra junk, uniformly allocate, *and* get that sweet
@@ -295,23 +297,17 @@ documentation) was problematic.
 ```text
 > cargo build
 
-warning: private type `first::Node` in public interface (error E0446)
- --> src/first.rs:8:10
-  |
-8 |     More(Box<Node>),
-  |          ^^^^^^^^^
-  |
-  = note: #[warn(private_in_public)] on by default
-  = warning: this was previously accepted by the compiler but
-    is being phased out; it will become a hard error in a future release!
+warning: type `Node` is more private than the item `List::More::0`
+  = note: `#[warn(private_interfaces)]` on by default
 ```
 
 :(
 
 Rust is mad at us again. We marked the `List` as public (because we want people
 to be able to use it), but not the `Node`. The problem is that the internals of
-an `enum` are totally public, and we're not allowed to publicly talk about
-private types. We could make all of `Node` totally public, but generally in Rust
+a public `enum` are public too. A public variant exposing a private type
+triggers the `private_interfaces` warning; it is not a hard compilation error,
+but it makes the interface awkward to use. We could make all of `Node` totally public, but generally in Rust
 we favour keeping implementation details private. Let's make `List` a struct, so
 that we can hide the implementation details:
 
@@ -331,8 +327,9 @@ struct Node {
 }
 ```
 
-Because `List` is a struct with a single field, its size is the same as that
-field. Yay zero-cost abstractions!
+This wrapper adds no useful runtime state beyond its link. Exact layout of
+ordinary Rust structs and custom enums is not a stable representation contract.
+Yay zero-cost abstractions!
 
 ```text
 > cargo build

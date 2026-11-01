@@ -8,18 +8,20 @@ fn borrow(&self) -> Ref<'_, T>;
 fn borrow_mut(&self) -> RefMut<'_, T>;
 ```
 
-The rules for `borrow` and `borrow_mut` are exactly those of `&` and `&mut`:
-you can call `borrow` as many times as you want, but `borrow_mut` requires
-exclusivity.
+The borrowing rules match those of `&T` and `&mut T`: you can have several
+shared borrows at once, or one exclusive mutable borrow. You cannot have both
+at the same time.
 
-Rather than enforcing this statically, RefCell enforces them at runtime.
-If you break the rules, RefCell will just panic and crash the program.
-Why does it return these Ref and RefMut things? Well, they basically behave
-like `Rc`s but for borrowing. They also keep the RefCell borrowed until they go out
-of scope. We'll get to that later.
+Rust normally checks these rules at compile time. `RefCell` checks them at
+runtime instead: `borrow` and `borrow_mut` panic if a requested borrow would
+break the rules, while `try_borrow` and `try_borrow_mut` return an error. The
+returned `Ref` and `RefMut` values are *guards*: they act like shared and
+mutable references to the contents and keep the corresponding borrow active
+until the guard is dropped. They are not owning pointers like `Rc`.
 
-Now with Rc and RefCell we can become... an incredibly verbose pervasively
-mutable garbage collected language that can't collect cycles! Y-yaaaaay...
+Now with `Rc<RefCell<T>>` we can share ownership and mutate through shared
+owners in one thread. Strong `Rc` cycles keep their nodes alive, so they can
+leak; reference counting is not tracing garbage collection. Y-yaaaaay...
 
 Alright, we want to be *doubly-linked*. This means each node has a pointer to
 the previous and next node. Also, the list itself has a pointer to the

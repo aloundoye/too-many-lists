@@ -3,13 +3,9 @@
 > Got any issues or want to check out all the final code at once?
 > [Everything's on Github!][github]
 
-> **NOTE**: The current edition of this book is written against Rust 2018,
-> which was first released with rustc 1.31 (Dec 8, 2018). If your rust toolchain
-> is new enough, the Cargo.toml file that `cargo new` creates should contain the
-> line `edition = "2018"` (or if you're reading this in the far future, perhaps
-> some even larger number!). Using an older toolchain is possible, but unlocks
-> a secret **hardmode**, where you get extra compiler errors that go completely
-> unmentioned in the text of this book. Wow, sounds like fun!
+> **Edition:** This revision uses Rust 2024 (Rust 1.85 or newer). Both the
+> crate and book examples select that edition. Diagnostics are illustrative;
+> wording and line numbers vary by compiler version. Miri requires nightly.
 
 I fairly frequently get asked how to implement a linked list in Rust. The
 answer honestly depends on what your requirements are, and it's obviously not

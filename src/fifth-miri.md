@@ -1,5 +1,11 @@
 # Miri
 
+> **Toolchain note:** The dialogue and diagnostic transcripts below preserve
+> the original investigation. Setup output is abbreviated; current Miri does
+> not require Xargo. Use `rustup +nightly component
+> add miri` and `cargo +nightly miri test` from the `lists` directory.
+> Allocation identifiers and diagnostics change between nightlies.
+
 *nervously laughs* This unsafe stuff is so easy, I don't know why everyone says otherwise. Our program works perfectly.
 
 > **NARRATOR:** 🙂
@@ -31,24 +37,10 @@ I guess I could try interpretters just *once*.
 Of course I do, it's *the* tool for having an up to date Rust toolchain!
 
 ```text
-> rustup +nightly-2022-01-21 component add miri
+> rustup +nightly component add miri
 
-info: syncing channel updates for 'nightly-2022-01-21-x86_64-pc-windows-msvc'
-info: latest update on 2022-01-21, rust version 1.60.0-nightly (777bb86bc 2022-01-20)
-info: downloading component 'cargo'
-info: downloading component 'clippy'
-info: downloading component 'rust-docs'
-info: downloading component 'rust-std'
-info: downloading component 'rustc'
-info: downloading component 'rustfmt'
-info: installing component 'cargo'
-info: installing component 'clippy'
-info: installing component 'rust-docs'
-info: installing component 'rust-std'
-info: installing component 'rustc'
-info: installing component 'rustfmt'
-info: downloading component 'miri'
-info: installing component 'miri'
+info: downloading component miri
+info: installing component miri
 ```
 
 What did you just install on my computer!?
@@ -57,46 +49,35 @@ What did you just install on my computer!?
 
 > **NARRATOR:** Some weird stuff going on with toolchain versions:
 >
-> The tool we're installing, `miri`, works closely with rustc's internals, 
+> The tool we're installing, `miri`, works closely with rustc's internals,
 > so it's only available for nightly toolchains.
 >
-> `+nightly-2022-01-21` tells `rustup` we want to install miri with the rust 
-> nightly toolchain for that date. I'm giving a specific date because sometimes
-> miri falls behind and can't be built for a few nightlies. rustup will
+> `+nightly` tells `rustup` we want to install miri with the rust
+> nightly toolchain. If Miri is unavailable for the latest nightly, select a
+> dated nightly with the component available instead. rustup will
 > automatically download whatever toolchain we specify with `+` if we don't
 > have it installed yet.
 >
-> 2022-01-21 is just a nightly I know has miri support, which you can check 
+> Miri availability for a particular nightly can be checked
 > [on this status page](https://rust-lang.github.io/rustup-components-history/).
 > You can just use `+nightly` if you're feeling lucky.
-> 
+>
 > Whenever we invoke miri via `cargo miri` we will also use this `+` syntax to
 > specify the toolchain we installed miri on. If you don't want to have to
 > specify it every time, you can use [`rustup override set`](https://rust-lang.github.io/rustup/overrides.html).
 
 ```text
-> cargo +nightly-2022-01-21 miri test
+> cargo +nightly miri test
 
-I will run `"cargo.exe" "install" "xargo"` to install
-a recent enough xargo. Proceed? [Y/n]
+Preparing a sysroot for Miri...
 ```
 
-UH WHAT ON EARTH IS XARGO?
+UH WHAT ON EARTH IS A SYSROOT?
 
-*"It's fine, don't worry about it."*
+*"It's fine, don't worry about it. It's preparing the standard library for the interpreter."*
 
 ```text
-> y
-
-    Updating crates.io index
-  Installing xargo v0.3.24
-...
-    Finished release [optimized] target(s) in 10.65s
-  Installing C:\Users\ninte\.cargo\bin\xargo-check.exe
-  Installing C:\Users\ninte\.cargo\bin\xargo.exe
-   Installed package `xargo v0.3.24` (executables `xargo-check.exe`, `xargo.exe`)
-
-I will run `"rustup" "component" "add" "rust-src"` to install 
+I will run `"rustup" "component" "add" "rust-src"` to install
 the `rust-src` component for the selected toolchain. Proceed? [Y/n]
 ```
 
@@ -118,21 +99,21 @@ info: installing component 'rust-src'
     Finished test [unoptimized + debuginfo] target(s) in 0.25s
      Running unittests (lists-5cc11d9ee5c3e924.exe)
 
-error: Undefined Behavior: trying to reborrow for Unique at alloc84055, 
-       but parent tag <209678> does not have an appropriate item in 
+error: Undefined Behavior: trying to reborrow for Unique at alloc84055,
+       but parent tag <209678> does not have an appropriate item in
        the borrow stack
 
    --> \lib\rustlib\src\rust\library\core\src\option.rs:846:18
     |
 846 |             Some(x) => Some(f(x)),
-    |                  ^ trying to reborrow for Unique at alloc84055, 
-    |                    but parent tag <209678> does not have an 
+    |                  ^ trying to reborrow for Unique at alloc84055,
+    |                    but parent tag <209678> does not have an
     |                    appropriate item in the borrow stack
     |
-    = help: this indicates a potential bug in the program: 
-      it performed an invalid operation, but the rules it 
+    = help: this indicates a potential bug in the program:
+      it performed an invalid operation, but the rules it
       violated are still experimental
-    = help: see https://github.com/rust-lang/unsafe-code-guidelines/blob/master/wip/stacked-borrows.md 
+    = help: see https://github.com/rust-lang/unsafe-code-guidelines/blob/master/wip/stacked-borrows.md
       for further information
 
     = note: inside `std::option::Option::<std::boxed::Box<fifth::Node<i32>>>::map::<i32, [closure@src\fifth.rs:31:30: 40:10]>` at \lib\rustlib\src\rust\library\core\src\option.rs:846:18
@@ -218,7 +199,7 @@ Miri is now hanging outside the classroom window with a knife. A learning knife.
 If we ever want miri to check our work, we can ask them to interpret our test suite with
 
 ```text
-> cargo +nightly-2022-01-21 miri test
+> cargo +nightly miri test
 ```
 
 Now let's take a closer look at what they carved into our desk:
@@ -229,17 +210,17 @@ error: Undefined Behavior: trying to reborrow for Unique at alloc84055, but pare
    --> \lib\rustlib\src\rust\library\core\src\option.rs:846:18
     |
 846 |             Some(x) => Some(f(x)),
-    |                  ^ trying to reborrow for Unique at alloc84055, 
-    |                    but parent tag <209678> does not have an 
+    |                  ^ trying to reborrow for Unique at alloc84055,
+    |                    but parent tag <209678> does not have an
     |                    appropriate item in the borrow stack
     |
 
-    = help: this indicates a potential bug in the program: it 
-      performed an invalid operation, but the rules it 
+    = help: this indicates a potential bug in the program: it
+      performed an invalid operation, but the rules it
       violated are still experimental
-    
-    = help: see 
-      https://github.com/rust-lang/unsafe-code-guidelines/blob/master/wip/stacked-borrows.md 
+
+    = help: see
+      https://github.com/rust-lang/unsafe-code-guidelines/blob/master/wip/stacked-borrows.md
       for further information
 ```
 

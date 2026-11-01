@@ -204,7 +204,7 @@ test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;
 ```
 
 ```text
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri test
+cargo +nightly miri test
 
 running 15 tests
 test fifth::test::basics ... ok
@@ -356,7 +356,7 @@ test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri test
+cargo +nightly miri test
 
 running 16 tests
 test fifth::test::basics ... ok

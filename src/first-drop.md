@@ -77,6 +77,12 @@ impl Drop for Node {
 }
 ```
 
+The `ref mut` above explicitly borrows the payload of the owned-place
+pattern `match *self`. Rust 2024 still permits that. When matching a reference
+directly, match ergonomics can supply the borrow instead; do not add `ref mut`
+on top of an inherited reference binding mode. This listing is destructor
+pseudocode, not an implementation to paste into the crate.
+
 We *can't* drop the contents of the Box *after* deallocating, so there's no
 way to drop in a tail-recursive manner! Instead we're going to have to manually
 write an iterative drop for `List` that hoists nodes out of their boxes.

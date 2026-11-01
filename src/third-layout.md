@@ -34,10 +34,9 @@ Functional languages &mdash; and indeed almost every other language &mdash; get 
 this by using *garbage collection*. With the magic of garbage collection, B will
 be freed only after everyone stops looking at it. Hooray!
 
-Rust doesn't have anything like the garbage collectors these languages have.
+Rust's ordinary ownership model does not use a tracing garbage collector.
 They have *tracing* GC, which will dig through all the memory that's sitting
-around at runtime and figure out what's garbage automatically. Instead, all
-Rust has today is *reference counting*. Reference counting can be thought of
+around at runtime and figure out what's garbage automatically. For shared ownership here, the standard library offers opt-in *reference counting*. Reference counting can be thought of
 as a very simple GC. For many workloads, it has significantly less throughput
 than a tracing collector, and it completely falls over if you manage to
 build cycles. But hey, it's all we've got! Thankfully, for our usecase we'll never run into cycles
@@ -47,7 +46,9 @@ So how do we do reference-counted garbage collection? `Rc`! Rc is just like
 Box, but we can duplicate it, and its memory will *only* be freed when *all*
 the Rc's derived from it are dropped. Unfortunately, this flexibility comes at
 a serious cost: we can only take a shared reference to its internals. This means
-we can't ever really get data out of one of our lists, nor can we mutate them.
+we cannot move data out while other strong owners exist, or mutate it through
+shared access using `Rc` alone. Later, `Rc::try_unwrap` will let us recover a
+uniquely owned node while dropping the list.
 
 So what's our layout gonna look like? Well, previously we had:
 

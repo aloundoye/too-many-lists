@@ -4,11 +4,11 @@ It's going to be annoying to punt on this now and fix it later, so we're going t
 
 There are five terrible horsemen of making unsafe Rust collections:
 
-1. [Variance](https://doc.rust-lang.org/nightly/nomicon/subtyping.html)
-2. [Drop Check](https://doc.rust-lang.org/nightly/nomicon/dropck.html)
-3. [NonNull Optimizations](https://doc.rust-lang.org/nightly/std/ptr/struct.NonNull.html)
-4. [The isize::MAX Allocation Rule](https://doc.rust-lang.org/nightly/nomicon/vec/vec-alloc.html)
-5. [Zero-Sized Types](https://doc.rust-lang.org/nightly/nomicon/vec/vec-zsts.html)
+1. [Variance](https://doc.rust-lang.org/nomicon/subtyping.html)
+2. [Drop Check](https://doc.rust-lang.org/nomicon/dropck.html)
+3. [NonNull Optimizations](https://doc.rust-lang.org/std/ptr/struct.NonNull.html)
+4. [The isize::MAX Allocation Rule](https://doc.rust-lang.org/nomicon/vec/vec-alloc.html)
+5. [Zero-Sized Types](https://doc.rust-lang.org/nomicon/vec/vec-zsts.html)
 
 Mercifully, the last 2 aren't going to be a problem for us. 
 
@@ -43,7 +43,7 @@ Yep, that compiles fine!
 
 Now let's have some fun and wrap it in, oh, I don't know, `std::cell::Cell`:
 
-```rust ,compilefail
+```rust ,compile_fail
 use std::cell::Cell;
 
 fn two_refs<'big: 'small, 'small>(
@@ -94,13 +94,20 @@ See it doesn't compile eith-- wait what??? Vec is magic??????
 
 Well, yes. But also, no. The magic was inside us all along, and that magic is ✨*Variance*✨.
 
-Read the [nomicon's chapter on subtyping](https://doc.rust-lang.org/nightly/nomicon/subtyping.html) if you want all the gorey details, but basically subtyping *isn't* always safe. In particular it's not safe when mutable references are involved because you can use things like `mem::swap` and suddenly oops dangling pointers!
+Read the [Nomicon's chapter on subtyping](https://doc.rust-lang.org/nomicon/subtyping.html) if you want all the gory details, but basically subtyping *isn't* always safe. In particular it's not safe when mutable references are involved because you can use things like `mem::swap` and suddenly oops dangling pointers!
 
-Things that are "like mutable references" are *invariant* which means they block subtyping from happening on their generic parameters. So for safety, `&mut T` is invariant over T, and `Cell<T>` is invariant over T because `&Cell<T>` is basically just `&mut T` (because of interior mutability).
+Types that can both read and replace a `T` through shared access must be
+*invariant* in `T`: they cannot allow a longer-lived `T` to be treated as a
+shorter-lived one (or vice versa). `&mut T` is invariant in `T`, and `Cell<T>`
+is invariant because its methods can replace the stored value through `&Cell<T>`.
 
 Almost everything that isn't invariant is *covariant*, and that just means that subtyping "passes through" it and continues to work normally (there are also contravariant types that make subtyping go backwards but they are really rare and no one likes them so I won't mention them again).
 
-Collections generally contain a mutable pointer to their data, so you might expect them to be invariant too, but in fact, they don't need to be! Because of Rust's ownership system, `Vec<T>` is semantically equivalent to `T`, and that means it's safe for it to be covariant!
+Collections often contain mutable pointers internally, but an owning
+collection can still be covariant. For example, `Vec<T>` owns its elements;
+replacing or mutating them requires exclusive access to the vector. That means
+it can safely allow the same lifetime shortening as `T`, so `Vec<T>` is
+covariant in `T`.
 
 Unfortunately, this definition is invariant:
 
@@ -130,23 +137,20 @@ This is extremely annoying for Exactly Me as a person who has spent a lot of tim
 
 > Unlike `*mut T`, `NonNull<T>` was chosen to be covariant over `T`. This makes it possible to use `NonNull<T>` when building covariant types, but introduces the risk of unsoundness if used in a type that shouldn’t actually be covariant.
 
-But hey, it's interface is built around `*mut T`, what's the deal! Is it just magic?! Let's look:
+But hey, its interface is built around `*mut T`, so how can it be covariant?
+The important part for us is the documented behavior: `NonNull<T>` is a
+non-null raw pointer wrapper that is covariant over `T`. Its private
+representation is an implementation detail, so we should not depend on the
+field layout. A pointer wrapper could achieve covariance by storing a
+`*const T` internally and exposing the appropriate raw-pointer operations, but
+that is only an illustration of the idea, not a promise about `NonNull`'s
+internals.
 
-```rust
-pub struct NonNull<T> {
-    pointer: *const T,
-}
-
-
-impl<T> NonNull<T> {
-    pub unsafe fn new_unchecked(ptr: *mut T) -> Self {
-        // SAFETY: the caller must guarantee that `ptr` is non-null.
-        unsafe { NonNull { pointer: ptr as *const T } }
-    }
-}
-```
-
-NOPE. NO MAGIC HERE! NonNull just abuses the fact that `*const T` is covariant and stores that instead, casting back and forth between `*mut T` at the API boundary to make it "look like" it's storing a `*mut T`. That's the whole trick! That's how collections in Rust are covariant! And it's miserable! So I made the Good Pointer Type do it for you! You're welcome! Enjoy your subtyping footgun!
+NOPE. NO MAGIC HERE! The useful lesson is that `NonNull` gives collections the
+covariance they need, while still allowing raw-pointer operations. This choice
+is only correct when the containing type is itself soundly covariant; if it can
+replace a `T` through shared access, it needs an invariant marker instead.
+Enjoy your subtyping footgun!
 
 The solution to all your problems is to use NonNull, and then if you want to have nullable pointers again, use `Option<NonNull<T>>`. Are we really going to bother doing that..?
 
@@ -174,7 +178,9 @@ struct Node<T> {
 }
 ```
 
-...wait nope, one last thing. Any time you do raw pointer stuff, you should add a Ghost to protect your pointers:
+...wait, one last thing. Our links use raw pointers, so their fields do not
+show that the list owns the values in its separately allocated nodes. We can
+express that relationship with a zero-sized marker:
 
 ```rust ,ignore
 use std::marker::PhantomData;
@@ -188,12 +194,18 @@ pub struct LinkedList<T> {
 }
 ```
 
-In this case I don't think we *actually* need [PhantomData](https://doc.rust-lang.org/std/marker/struct.PhantomData.html), but any time you *do* use NonNull (or just raw pointers in general), you should always add it to be safe and make it clear to the compiler and others what you *think* you're doing.
+`PhantomData` is not a safety shield that belongs beside every raw pointer.
+Use it when the real relationship between your type and some `T` or lifetime
+is missing from its fields. Here, `LinkedList<T>` owns `T` values through its
+allocated nodes, but its links are raw pointers, so `_boo: PhantomData<T>`
+tells the compiler to treat the list as though it owns `T`. That affects
+properties such as drop checking and auto traits; it does not validate a
+pointer or make an unsafe operation sound by itself.
 
-PhantomData is a way for us to give the compiler an extra "example" field that *conceptually* exists in your type but for various reasons (indirection, type erasure, ...) doesn't. In this case we're using NonNull because we're claiming our type behaves "as if" it stored a value T, so we add a PhantomData to make that explicit.
+The exact interaction with [drop checking](https://doc.rust-lang.org/nomicon/dropck.html)
+is subtle, so we will use the marker that matches this list's ownership and
+leave the full rules for another time. (The `Node<T>` itself stores `T`
+directly, so it does not need this marker.)
 
-The stdlib actually has other reasons to do this because it has access to the accursed [Drop Check overrides](https://doc.rust-lang.org/nightly/nomicon/dropck.html), but that feature has been reworked so many times that I don't actually know if the PhantomData thing *is* a thing for it anymore. I'm still going to cargo-cult it for all eternity, because Drop Check Magic is burned into my brain!
-
-(Node literally stores a T, so it doesn't have to do this, yay!)
 
 ...ok for real we're done with layout now! On to actual basic functionality!

@@ -28,7 +28,7 @@ Pretty straight-forward, one field for each item of our bulleted list! Now the `
 
 ```rust ,ignore
 impl<T> LinkedList<T> {
-    pub fn cursor_mut(&mut self) -> CursorMut<T> {
+    pub fn cursor_mut(&mut self) -> CursorMut<'_, T> {
         CursorMut { 
             list: self, 
             cur: None, 
@@ -152,11 +152,15 @@ I see 4 potentially interesting cases for split_before:
 
 Let's start with the corner cases. The third case I believe is just
 
-```rust
-mem::replace(self.list, LinkedList::new())
+```rust,ignore
+std::mem::take(self.list)
 ```
 
-Right? We become empty, we return the whole list, and our fields were already None, so nothing to update. Nice. Oh hey, this also Does The Right Thing on the fourth case too!
+Right? `mem::take` replaces a value with its `Default` value and returns
+the previous value. We implemented `Default` for `LinkedList` earlier, so
+this is `mem::replace(self.list, LinkedList::new())` with the replacement
+chosen by that implementation. We become empty, we return the whole list,
+and our fields were already None, so nothing to update. Nice. Oh hey, this also Does The Right Thing on the fourth case too!
 
 So now the normal cases... ok I'm going to need some ASCII diagrams for this. In the most general case, we have something like this:
 
@@ -221,7 +225,7 @@ pub fn split_before(&mut self) -> LinkedList<T> {
     } else {
         // We're at the ghost, just replace our list with an empty one.
         // No other state needs to be changed.
-        std::mem::replace(self.list, LinkedList::new())
+        std::mem::take(self.list)
     }
 }
 ```
@@ -360,13 +364,13 @@ if let Some(0) = self.index {
 
 Adjusting the index is duplicated inside the branches, so can also be hoisted out:
 
-```rust
+```rust,ignore
 *self.index.as_mut().unwrap() += input.len;
 ```
 
 Ok, putting that all together we get this:
 
-```rust
+```rust,ignore
 if input.is_empty() {
     // Input is empty, do nothing.
 } else if let Some(cur) = self.cur {
@@ -411,14 +415,14 @@ input.len = 0;
 
 Alright this still sucks, but mostly because of -- nope ok just spotted a bug:
 
-```rust
+```rust,ignore
     (*back.as_ptr()).back = input.front.take();
     (*input.front.unwrap().as_ptr()).front = Some(back);
 ```
 
 We `take` input.front and then unwrap it on the next line! *sigh* and we do the same thing in the equivalent mirror case. We would have caught this instantly in tests, but, we're trying to be Perfect now, and I'm just kinda doing this live, and this is the exact moment where I saw it. This is what I get for not being my usual tedious self and doing things in phases. More explicit!
 
-```rust
+```rust,ignore
 // We can either `take` the input's pointers or `mem::forget`
 // it. Using `take` is more responsible in case we ever do custom
 // allocators or something that also needs to be cleaned up!
@@ -478,7 +482,7 @@ pub struct CursorMut<'a, T> {
 }
 
 impl<T> LinkedList<T> {
-    pub fn cursor_mut(&mut self) -> CursorMut<T> {
+    pub fn cursor_mut(&mut self) -> CursorMut<'_, T> {
         CursorMut { 
             list: self, 
             cur: None, 
@@ -614,7 +618,7 @@ impl<'a, T> CursorMut<'a, T> {
         } else {
             // We're at the ghost, just replace our list with an empty one.
             // No other state needs to be changed.
-            std::mem::replace(self.list, LinkedList::new())
+            std::mem::take(self.list)
         }
     }
 
@@ -676,7 +680,7 @@ impl<'a, T> CursorMut<'a, T> {
         } else {
             // We're at the ghost, just replace our list with an empty one.
             // No other state needs to be changed.
-            std::mem::replace(self.list, LinkedList::new())
+            std::mem::take(self.list)
         }
     }
 

@@ -29,7 +29,7 @@ impl<T> List<T> {
     pub fn push(&mut self, elem: T) {
         unsafe {
             let new_tail = Box::into_raw(Box::new(Node {
-                elem: elem,
+                elem,
                 next: ptr::null_mut(),
             }));
 

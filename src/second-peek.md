@@ -6,9 +6,7 @@ the head of the list, if it exists. Sounds easy, let's try:
 
 ```rust ,ignore
 pub fn peek(&self) -> Option<&T> {
-    self.head.map(|node| {
-        &node.elem
-    })
+    self.head.map(|node| &node.elem)
 }
 ```
 
@@ -52,9 +50,7 @@ thankfully the `.` operator handles that for us.
 
 ```rust ,ignore
 pub fn peek(&self) -> Option<&T> {
-    self.head.as_ref().map(|node| {
-        &node.elem
-    })
+    self.head.as_ref().map(|node| &node.elem)
 }
 ```
 
@@ -70,9 +66,7 @@ We can also make a *mutable* version of this method using `as_mut`:
 
 ```rust ,ignore
 pub fn peek_mut(&mut self) -> Option<&mut T> {
-    self.head.as_mut().map(|node| {
-        &mut node.elem
-    })
+    self.head.as_mut().map(|node| &mut node.elem)
 }
 ```
 

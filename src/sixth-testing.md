@@ -301,7 +301,7 @@ test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 ```text
-$env:MIRIFLAGS="-Zmiri-tag-raw-pointers"
+
 cargo miri test
    Compiling linked-list v0.0.3
     Finished test [unoptimized + debuginfo] target(s) in 0.35s

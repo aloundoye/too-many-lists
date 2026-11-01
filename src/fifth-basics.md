@@ -102,7 +102,7 @@ the previous reference version:
 ```rust ,ignore
 pub fn push(&mut self, elem: T) {
     let mut new_tail = Box::new(Node {
-        elem: elem,
+        elem,
         next: None,
     });
 
@@ -193,7 +193,7 @@ This declares the overall function to be safe. Let's do that one:
 ```rust ,ignore
 pub fn push(&mut self, elem: T) {
     let mut new_tail = Box::new(Node {
-        elem: elem,
+        elem,
         next: None,
     });
 
@@ -237,11 +237,13 @@ Rust carefully carves out a minimal surface area for unsafety. Note that all
 the other places we've worked with raw pointers has been *assigning* them, or
 just observing whether they're null or not.
 
-If you never actually dereference a raw pointer *those are totally safe things
-to do*. You're just reading and writing an integer! The only time you can
-actually get into trouble with a raw pointer is if you actually dereference it.
-So Rust says *only* that operation is unsafe, and everything else is totally
-safe.
+The pointer operations we've used so far only create, copy, store, or check a
+pointer value; they do not access the memory it points to, so those operations
+are safe. The pointer itself is not just an integer, though, and dereferencing
+is not the only operation that can be unsafe: pointer arithmetic and raw
+memory reads or writes also have safety requirements. For this example,
+dereferencing is the first operation that asks Rust to access pointed-to
+memory, so that is where we need an `unsafe` block.
 
 Super. Pedantic. But technically correct.
 

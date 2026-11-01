@@ -106,7 +106,7 @@ Instead, let's try to store `Ref<Node>`s:
 pub struct Iter<'a, T>(Option<Ref<'a, Node<T>>>);
 
 impl<T> List<T> {
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter(self.head.as_ref().map(|head| head.borrow()))
     }
 }
@@ -262,7 +262,7 @@ of the list?
 pub struct Iter<T>(Option<Rc<Node<T>>>);
 
 impl<T> List<T> {
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter(self.head.as_ref().map(|head| head.clone()))
     }
 }

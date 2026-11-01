@@ -173,8 +173,10 @@ a totally transparent way.
 
 So what's a lifetime?
 
-Quite simply, a lifetime is the name of a region (\~block/scope) of code somewhere in a program.
-That's it. When a reference is tagged with a lifetime, we're saying that it
+A reference's lifetime describes the region of the program where it may
+be used. That region need not be an entire lexical block: the compiler tracks
+uses, and a borrow can end after its last use. A named lifetime in a signature
+expresses a relationship between borrows rather than extending a value's life. When a reference is tagged with a lifetime, we're saying that it
 has to be valid for that *entire* region. Different things place requirements on
 how long a reference must and can be valid for. The entire lifetime system is in
 turn just a constraint-solving system that tries to minimize the region of every
@@ -539,7 +541,8 @@ impl<T> List<T> {
 Yay fewer lifetimes!
 
 Or, if you're not comfortable "hiding" that a struct contains a lifetime,
-you can use the Rust 2018 "explicitly elided lifetime" syntax,  `'_`:
+you can write the elided lifetime explicitly with the placeholder `'_`:
+Current Rust recommends this spelling to avoid hiding the lifetime in a type path.
 
 ```rust ,ignore
 impl<T> List<T> {

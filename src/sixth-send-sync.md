@@ -4,7 +4,11 @@ Ok actually we do have one more pair of traits to think about, but they're speci
 
 Like Copy, these traits have absolutely no code associated with them, and are just markers that your type has a particular property. Send says that your type is safe to send to another thread. Sync says your type is safe to share between threads (&Self: Send).
 
-The same argument for LinkedList being covariant applies here: generally normal collections which don't use fancy interior mutability tricks are safe to make Send and Sync.
+For a collection that owns its elements and does not use unsynchronized
+interior mutability, the expected bounds are usually `T: Send` for the
+collection to be `Send`, and `T: Sync` for it to be `Sync`. Raw pointers opt
+out of these auto traits, so our pointer-based collection needs explicit
+implementations and a safety argument for each one.
 
 But I said they're *opt out*. So actually, are we already? How would we know?
 
@@ -64,22 +68,33 @@ note: required by a bound in `is_send`
 
 Oh geez, what gives! I had that great Holy Roman Empire joke!
 
-Well, I lied to you when I said raw pointers have only one safety guard: this is the other. `*const` AND `*mut` explicitly opt out of Send and Sync to be safe, so we do *actually* have to opt back in:
+Well, I lied to you when I said raw pointers have only one safety guard: this is the other. Raw pointers and `NonNull<T>` are not `Send` or `Sync` by default, so we do *actually* have to opt back in:
 
 ```rust ,ignore
 unsafe impl<T: Send> Send for LinkedList<T> {}
 unsafe impl<T: Sync> Sync for LinkedList<T> {}
 
-unsafe impl<'a, T: Send> Send for Iter<'a, T> {}
+// Moving shared access between threads requires T: Sync, just like &T.
+unsafe impl<'a, T: Sync> Send for Iter<'a, T> {}
 unsafe impl<'a, T: Sync> Sync for Iter<'a, T> {}
 
 unsafe impl<'a, T: Send> Send for IterMut<'a, T> {}
 unsafe impl<'a, T: Sync> Sync for IterMut<'a, T> {}
 ```
 
-Note that we have to write *unsafe impl* here: these are *unsafe traits*! Unsafe code (like concurrency libraries) gets to rely on us only implementing these traits correctly! Since there's no actual code, the guarantee we're making is just that, yes, we are indeed safe to Send or Share between threads!
+These are `unsafe impl`s because `Send` and `Sync` are unsafe traits: other
+unsafe code may rely on our promises. `LinkedList<T>` is safe to move when its
+elements are `Send`, and safe to share by reference when its elements are
+`Sync`. `Iter<'a, T>` contains shared access to elements, so moving that
+iterator to another thread requires `T: Sync`. `IterMut<'a, T>` yields
+exclusive access, so moving it requires `T: Send`; sharing a reference to the
+iterator requires `T: Sync`.
 
-Don't just slap these on lightly, but I am a Certified Professional here to say: yep there's are totally fine. Note how we don't need to implement Send and Sync for IntoIter: it just contains LinkedList, so it auto-derives Send and Sync &mdash; I told you they were actually opt out! (You opt out with the hillarious syntax of `impl !Send for MyType {}`.)
+Don't just slap these on lightly, but I am a Certified Professional here to
+say: yep, these bounds match the access each type exposes. `IntoIter` contains
+a `LinkedList`, so its traits follow from the list's traits. Negative impl
+syntax such as `impl !Send for MyType {}` is still unstable; on stable Rust a
+field that is itself not `Send` or `Sync` can make a type opt out.
 
 ```text
 cargo build
@@ -128,7 +143,8 @@ error[E0308]: mismatched types
 
 Ok cool, we've proved it's invariant, but uh, now our tests fail. No worries, rustdoc lets you say that's expected by annotating the fence with compile_fail!
 
-(Actually we only proved it's "not covariant" but honestly if you manage to make a type "accidentaly and incorrectly contravariant" then, congrats?)
+(Actually we only proved it is "not covariant"; a type could in principle be
+contravariant, though that is uncommon for collections.)
 
 ```rust ,ignore
     /// ```compile_fail
@@ -157,10 +173,10 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 Yay! I recommend always making the test without compile_fail so that you can confirm that it fails to compile *for the right reason*. For instance, that test will also fail (and therefore pass) if you forget the `use`, which, is not what we want! While it's conceptually appealing to be able to "require" a specific error from the compiler, this would be an absolute nightmare that would effectively make it a breaking change *for the compiler to produce better errors*. We want the compiler to get better, so, no you don't get to have that.
 
-(Oh wait, we can actually just specify the error code we want next to the compile_fail **but this only works on nightly and is a bad idea to rely on for the reasons state above. It will be silently ignored on not-nightly.**)
+(Rustdoc supports attaching an expected error code to `compile_fail` on nightly. On stable, a tag such as `compile_fail,E0308` is interpreted as plain text rather than as a compile-fail test. We avoid relying on that experimental behavior here.)
 
 ```rust ,ignore
-    /// ```compile_fail,E0308
+    /// ```compile_fail
     /// use linked_list::IterMut;
     /// 
     /// fn iter_mut_covariant<'i, 'a, T>(x: IterMut<'i, &'static T>) -> IterMut<'i, &'a T> { x }

@@ -4,7 +4,7 @@ I can't believe I actually just made you sit through me actually reimplementing 
 
 I did it, the book is done, I can finally rest.
 
-Alright, here's all 1200 lines of our complete rewrite of  in all of its glory. This should be the same text as [this commit](https://github.com/contain-rs/linked-list/commit/5b69cc29454595172a5167a09277660342b78092).
+Alright, here's all 1200 lines of our complete rewrite of `std::collections::LinkedList` in all of its glory. This is based on [this commit](https://github.com/contain-rs/linked-list/commit/5b69cc29454595172a5167a09277660342b78092), with the Rust 2024 corrections discussed here.
 
 I'll put some polish and docs back on and publish 0.1.0 later.
 
@@ -115,8 +115,8 @@ impl<T> LinkedList<T> {
         unsafe {
             // Only have to do stuff if there is a front node to pop.
             self.front.map(|node| {
-                // Bring the Box back to life so we can move out its value and
-                // Drop it (Box continues to magically understand this for us).
+                // Rebuild the owning Box from the raw pointer. This transfers
+                // ownership of the allocation back to Box.
                 let boxed_node = Box::from_raw(node.as_ptr());
                 let result = boxed_node.elem;
 
@@ -132,7 +132,8 @@ impl<T> LinkedList<T> {
 
                 self.len -= 1;
                 result
-                // Box gets implicitly freed here, knows there is no T.
+                // When boxed_node leaves scope, Rust drops its remaining fields
+                // and frees the node allocation. The moved element is returned.
             })
         }
     }
@@ -141,8 +142,8 @@ impl<T> LinkedList<T> {
         unsafe {
             // Only have to do stuff if there is a back node to pop.
             self.back.map(|node| {
-                // Bring the Box front to life so we can move out its value and
-                // Drop it (Box continues to magically understand this for us).
+                // Rebuild the owning Box from the raw pointer. This transfers
+                // ownership of the allocation back to Box.
                 let boxed_node = Box::from_raw(node.as_ptr());
                 let result = boxed_node.elem;
 
@@ -158,7 +159,8 @@ impl<T> LinkedList<T> {
 
                 self.len -= 1;
                 result
-                // Box gets implicitly freed here, knows there is no T.
+                // When boxed_node leaves scope, Rust drops its remaining fields
+                // and frees the node allocation. The moved element is returned.
             })
         }
     }
@@ -192,7 +194,7 @@ impl<T> LinkedList<T> {
         while self.pop_front().is_some() {}
     }
 
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter {
             front: self.front,
             back: self.back,
@@ -201,7 +203,7 @@ impl<T> LinkedList<T> {
         }
     }
 
-    pub fn iter_mut(&mut self) -> IterMut<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut {
             front: self.front,
             back: self.back,
@@ -210,7 +212,7 @@ impl<T> LinkedList<T> {
         }
     }
 
-    pub fn cursor_mut(&mut self) -> CursorMut<T> {
+    pub fn cursor_mut(&mut self) -> CursorMut<'_, T> {
         CursorMut {
             list: self,
             cur: None,
@@ -571,7 +573,7 @@ impl<'a, T> CursorMut<'a, T> {
         } else {
             // We're at the ghost, just replace our list with an empty one.
             // No other state needs to be changed.
-            std::mem::replace(self.list, LinkedList::new())
+            std::mem::take(self.list)
         }
     }
 
@@ -633,7 +635,7 @@ impl<'a, T> CursorMut<'a, T> {
         } else {
             // We're at the ghost, just replace our list with an empty one.
             // No other state needs to be changed.
-            std::mem::replace(self.list, LinkedList::new())
+            std::mem::take(self.list)
         }
     }
 
@@ -764,7 +766,7 @@ impl<'a, T> CursorMut<'a, T> {
 unsafe impl<T: Send> Send for LinkedList<T> {}
 unsafe impl<T: Sync> Sync for LinkedList<T> {}
 
-unsafe impl<'a, T: Send> Send for Iter<'a, T> {}
+unsafe impl<'a, T: Sync> Send for Iter<'a, T> {}
 unsafe impl<'a, T: Sync> Sync for Iter<'a, T> {}
 
 unsafe impl<'a, T: Send> Send for IterMut<'a, T> {}
@@ -797,7 +799,7 @@ fn assert_properties() {
         x
     }
 
-    /// ```compile_fail,E0308
+    /// ```compile_fail
     /// use linked_list::IterMut;
     ///
     /// fn iter_mut_covariant<'i, 'a, T>(x: IterMut<'i, &'static T>) -> IterMut<'i, &'a T> { x }

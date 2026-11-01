@@ -2,3 +2,5 @@
 name = "lists"
 version = "0.1.0"
 authors = ["ADesires"]
+
+edition = "2024"

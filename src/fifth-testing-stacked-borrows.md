@@ -6,7 +6,8 @@
 > * Only the one on the top of the stack is "live" (has exclusive access)
 > * When you access a lower one it becomes "live" and the ones above it get popped
 > * You're not allowed to use pointers that have been popped from the borrow stack
-> * The borrowchecker ensures safe code code obeys this
+> * The borrow checker prevents conflicting reference uses in safe code;
+>   Stacked Borrows is a separate model, not its literal implementation
 > * Miri theoretically checks that raw pointers obey this at runtime
 
 That was a lot of theory and ideas -- let's move on to the true heart and soul of this book: writing some bad code and getting our tools to scream at us. We're going to go through a *ton* of examples to try to see if our mental model makes sense, and to try to get an intuitive feel for stacked borrows.
@@ -62,10 +63,10 @@ cargo run
 13
 ```
 
-Rustc seems perfectly happy with this: no warnings and the program produced the result we expected! Now let's look at what miri (in strict mode) thinks of it: 
+Rustc seems perfectly happy with this: no warnings and the program produced the result we expected! Now let's look at what miri (with its default Stacked Borrows checks) thinks of it:
 
 ```text
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
     Finished dev [unoptimized + debuginfo] target(s) in 0.00s
      Running cargo-miri.exe target\miri
@@ -114,7 +115,7 @@ unsafe {
 cargo run
 22
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
 error: Undefined Behavior: no item granting read access 
 to tag <1621> at alloc748 found in borrow stack.
@@ -127,7 +128,7 @@ to tag <1621> at alloc748 found in borrow stack.
    |
 ```
 
-Wow yep! In strict mode miri can "tell apart" the two raw pointers and have using the second one invalidate the first one. Let's see if everything works when we remove the first use that messes everything up:
+Wow yep! With its default Stacked Borrows checks miri can "tell apart" the two raw pointers and have using the second one invalidate the first one. Let's see if everything works when we remove the first use that messes everything up:
 
 ```rust ,ignore
 unsafe {
@@ -151,7 +152,7 @@ unsafe {
 cargo run
 20
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 20
 ```
 
@@ -189,7 +190,7 @@ unsafe {
 cargo run
 [3, 3, 0, 0, 0, 0, 0, 0, 0, 0]
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
 error: Undefined Behavior: no item granting read access 
 to tag <1619> at alloc748+0x4 found in borrow stack.
@@ -224,7 +225,7 @@ unsafe {
 cargo run
 [6, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 [6, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
@@ -258,7 +259,7 @@ unsafe {
 cargo run
 [20, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 [20, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
@@ -333,7 +334,7 @@ unsafe {
 cargo run
 [10, 12, 0, 0, 0, 0, 0, 0, 0, 0]
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 [10, 12, 0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
@@ -383,7 +384,7 @@ unsafe {
 cargo run
 [8, 12, 4, 6, 8, 10, 12, 14, 16, 18]
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 [8, 12, 4, 6, 8, 10, 12, 14, 16, 18]
 ```
 
@@ -507,10 +508,17 @@ cargo run
 17
 ```
 
+On current Rust, the cast itself is accepted, but writing through the pointer
+is rejected by the `invalid_reference_casting` lint. The output above is
+historical. To inspect the dynamic aliasing failure in Miri, our sandbox
+explicitly allows that lint for this one deliberately invalid experiment.
+Allowing a lint does not make the write valid. Don't apply that allowance to
+our list implementation!
+
 WHAT. OK SURE FINE? Great cast system there Rust. It's almost like the `*const` is a pretty useless type that only really exists to describe C APIs and to vaguely suggest correct usage (it is, it does). What does miri think?
 
 ```text
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
 error: Undefined Behavior: no item granting write access to 
 tag <1621> at alloc742 found in borrow stack.
@@ -558,7 +566,7 @@ cargo run
 10
 13
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 10
 10
 13
@@ -590,7 +598,7 @@ cargo run
 12
 13
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
 error: Undefined Behavior: trying to reborrow for SharedReadOnly 
 at alloc742, but parent tag <1620> does not have an appropriate 
@@ -642,7 +650,7 @@ Ah, such a beautiful mess. It will be lovely to see miri spit on it.
 cargo run
 16
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 16
 ```
 
@@ -707,7 +715,7 @@ cargo run
 12
 13
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
 error: Undefined Behavior: trying to reborrow for SharedReadOnly
 at alloc748, but parent tag <1629> does not have an appropriate
@@ -760,7 +768,7 @@ cargo run
 12
 16
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 12
 16
 ```
@@ -807,7 +815,7 @@ cargo run
 13
 16
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 13
 16
 ```
@@ -850,7 +858,7 @@ unsafe {
 cargo run
 21
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 
 error: Undefined Behavior: no item granting read access 
        to tag <1707> at alloc763 found in borrow stack.
@@ -882,7 +890,7 @@ unsafe {
 cargo run
 21
 
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri run
+cargo +nightly miri run
 21
 ```
 

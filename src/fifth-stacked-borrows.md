@@ -158,22 +158,25 @@ But wait, you can turn a raw pointer *into* a reference! And you can copy raw po
 
 I genuinely don't know! That's why things are complicated. In fact they're *extra* complicated because stacked borrows are *trying* to be more permissive and let more unsafe code work the way you'd expect it to. This is why I run things under miri to try to help me catch mistakes.
 
-In fact, this messiness is why there is an extra-experimental extra-strict mode of miri: `-Zmiri-tag-raw-pointers`.
+Miri checks experimental Stacked Borrows rules by default. The old
+`-Zmiri-tag-raw-pointers` flag is obsolete. These checks are evidence about
+executed paths, not a complete specification or proof of soundness.
 
-To enable it, we need to pass it via a MIRIFLAGS environment variable like this:
-
-```text
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri test
-```
-
-Or like this on Windows, where you need to just set the variable globally:
+No extra environment variable is needed for the default checks:
 
 ```text
-$env:MIRIFLAGS="-Zmiri-tag-raw-pointers"
-cargo +nightly-2022-01-21 miri test
+cargo +nightly miri test
 ```
 
-We'll generally be trying to conform to this extra-strict mode just to be *extra* confident in our work. It's also in some sense "simpler", so it's actually better for messing around and getting an intuition for stacked borrows.
+The same command works in PowerShell on Windows:
+
+```text
+
+cargo +nightly miri test
+```
+
+We'll use the default Stacked Borrows checks to experiment with these rules.
+A passing run checks only the paths exercised, not every possible execution.
 
 
 

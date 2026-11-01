@@ -341,7 +341,7 @@ fn check_links<T: Eq + std::fmt::Debug>(list: &LinkedList<T>) {
 Is this the best way to do this? No. Is it fine? Yes.
 
 ```text
-$env:MIRIFLAGS="-Zmiri-tag-raw-pointers"
+
 cargo miri test
    Compiling linked-list v0.0.3
     Finished test [unoptimized + debuginfo] target(s) in 0.25s

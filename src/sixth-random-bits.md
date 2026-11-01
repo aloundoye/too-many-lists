@@ -203,8 +203,8 @@ impl<T> LinkedList<T> {
         unsafe {
             // Only have to do stuff if there is a front node to pop.
             self.front.map(|node| {
-                // Bring the Box back to life so we can move out its value and
-                // Drop it (Box continues to magically understand this for us).
+                // Rebuild the owning Box from the raw pointer. This transfers
+                // ownership of the allocation back to Box.
                 let boxed_node = Box::from_raw(node.as_ptr());
                 let result = boxed_node.elem;
 
@@ -220,7 +220,8 @@ impl<T> LinkedList<T> {
 
                 self.len -= 1;
                 result
-                // Box gets implicitly freed here, knows there is no T.
+                // When boxed_node leaves scope, Rust drops its remaining fields
+                // and frees the node allocation. The moved element is returned.
             })
         }
     }
@@ -229,8 +230,8 @@ impl<T> LinkedList<T> {
         unsafe {
             // Only have to do stuff if there is a back node to pop.
             self.back.map(|node| {
-                // Bring the Box front to life so we can move out its value and
-                // Drop it (Box continues to magically understand this for us).
+                // Rebuild the owning Box from the raw pointer. This transfers
+                // ownership of the allocation back to Box.
                 let boxed_node = Box::from_raw(node.as_ptr());
                 let result = boxed_node.elem;
 
@@ -246,7 +247,8 @@ impl<T> LinkedList<T> {
 
                 self.len -= 1;
                 result
-                // Box gets implicitly freed here, knows there is no T.
+                // When boxed_node leaves scope, Rust drops its remaining fields
+                // and frees the node allocation. The moved element is returned.
             })
         }
     }
@@ -288,7 +290,7 @@ impl<T> LinkedList<T> {
         while let Some(_) = self.pop_front() { }
     }
 
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter { 
             front: self.front, 
             back: self.back,
@@ -297,7 +299,7 @@ impl<T> LinkedList<T> {
         }
     }
 
-    pub fn iter_mut(&mut self) -> IterMut<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut { 
             front: self.front, 
             back: self.back,

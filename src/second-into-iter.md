@@ -54,6 +54,11 @@ impl<T> Iterator for IntoIter<T> {
 }
 ```
 
+The method above is an inherent `into_iter` method. We haven't implemented
+the separate `IntoIterator` trait, so this alone does not enable
+`for item in list`. The iterator itself implements `Iterator`, which is
+what lets us repeatedly call `next`.
+
 And let's write a test:
 
 ```rust ,ignore

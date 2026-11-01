@@ -123,7 +123,7 @@ pub fn push(&mut self, elem: T) {
     unsafe {
         // Immediately convert the Box into a raw pointer
         let new_tail = Box::into_raw(Box::new(Node {
-            elem: elem,
+            elem,
             next: ptr::null_mut(),
         }));
 
@@ -245,7 +245,7 @@ test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured
 Good, but does miri agree?
 
 ```text
-MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly-2022-01-21 miri test
+cargo +nightly miri test
 
 running 12 tests
 test fifth::test::basics ... ok

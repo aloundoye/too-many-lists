@@ -47,19 +47,19 @@ pub fn pop_back(&mut self) -> Option<T> {
     })
 }
 
-pub fn peek_back(&self) -> Option<Ref<T>> {
+pub fn peek_back(&self) -> Option<Ref<'_, T>> {
     self.tail.as_ref().map(|node| {
         Ref::map(node.borrow(), |node| &node.elem)
     })
 }
 
-pub fn peek_back_mut(&mut self) -> Option<RefMut<T>> {
+pub fn peek_back_mut(&mut self) -> Option<RefMut<'_, T>> {
     self.tail.as_ref().map(|node| {
         RefMut::map(node.borrow_mut(), |node| &mut node.elem)
     })
 }
 
-pub fn peek_front_mut(&mut self) -> Option<RefMut<T>> {
+pub fn peek_front_mut(&mut self) -> Option<RefMut<'_, T>> {
     self.head.as_ref().map(|node| {
         RefMut::map(node.borrow_mut(), |node| &mut node.elem)
     })

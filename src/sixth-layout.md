@@ -14,6 +14,9 @@ We have this:
 ... <-> (ptr, A, ptr) <-> (ptr, B, ptr) <-> ...
 ```
 
+The linked standard-library cursor API is a reference for the design; its
+availability depends on the Rust toolchain. We implement our own cursor here.
+
 This lets you traverse the list from either direction, or seek back and forth with a [cursor](https://doc.rust-lang.org/std/collections/struct.LinkedList.html#method.cursor_back_mut).
 
 In exchange for this flexibility, every node has to store twice as many pointers, and every operation has to fix up way more pointers. It's a significant enough complication that it's a lot easier to make a mistake, so we're going to be doing a lot of testing.

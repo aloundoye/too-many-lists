@@ -21,22 +21,23 @@ List. Like the mutable list case, we want to make a new node, that has the old
 list as its `next` value. The only novel thing is how to *get* that next value,
 because we're not allowed to mutate anything.
 
-The answer to our prayers is the Clone trait. Clone is implemented by almost
-every type, and provides a generic way to get "another one like this one" that
-is logically disjoint, given only a shared reference. It's like a copy
-constructor in C++, but it's never implicitly invoked.
+The answer is the `Clone` trait. It creates another value according to that
+type's cloning rules; it may copy data, share data, or do something else, and
+it is never called implicitly. In particular, cloning an `Rc` does **not**
+clone the node: it creates another owner of the same allocation and increments
+the strong-reference count.
 
-Rc in particular uses Clone as the way to increment the reference count. So
-rather than moving a Box to be in the sublist, we just clone the head of the
-old list. We don't even need to match on the head, because Option exposes a
-Clone implementation that does exactly the thing we want.
+So rather than moving a `Box` into the new node, we clone the old list's head
+link. Since `Link<T>` is `Option<Rc<Node<T>>>`, `Option`'s `Clone`
+implementation clones the `Rc` inside `Some` and preserves `None`. No match is
+needed.
 
 Alright, let's give it a shot:
 
 ```rust ,ignore
 pub fn prepend(&self, elem: T) -> List<T> {
     List { head: Some(Rc::new(Node {
-        elem: elem,
+        elem,
         next: self.head.clone(),
     }))}
 }

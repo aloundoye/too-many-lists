@@ -107,11 +107,12 @@ the contents of an Rc if its refcount is 1.
 Rc::try_unwrap(old_head).unwrap().into_inner().elem
 ```
 
-`Rc::try_unwrap` returns a `Result<T, Rc<T>>`. Results are basically a
-generalized `Option`, where the `None` case has data associated with it. In
-this case, the `Rc` you tried to unwrap. Since we don't care about the case
-where it fails (if we wrote our program correctly, it *has* to succeed), we
-just call `unwrap` on it.
+`Rc::try_unwrap` returns a `Result<T, Rc<T>>`: `Ok` contains the inner value
+when this was the only strong owner, and `Err` contains the `Rc` when another
+strong owner still exists. `Result` models success or failure; `Option` models
+whether a value is present. We expect this call to succeed because the list
+has detached the node from its links, so we try `unwrap` and let the program
+panic if that ownership assumption is wrong.
 
 Anyway, let's see what compiler error we get next (let's face it, there's going
 to be one).
@@ -129,11 +130,17 @@ error[E0599]: no method named `unwrap` found for type `std::result::Result<std::
            `std::rc::Rc<std::cell::RefCell<fourth::Node<T>>> : std::fmt::Debug`
 ```
 
-UGH. `unwrap` on Result requires that you can debug-print the error case.
-`RefCell<T>` only implements `Debug` if `T` does. `Node` doesn't implement Debug.
+UGH. This is not a problem with `Rc::try_unwrap` or our ownership reasoning:
+`Result::unwrap` also needs to format the `Err` value if it panics, so the error
+type must implement `Debug`. `RefCell<T>` only implements `Debug` when `T`
+does, and `Node<T>` does not.
 
-Rather than doing that, let's just work around it by converting the Result to
-an Option with `ok`:
+Calling `ok()` discards the error value and turns the `Result` into an
+`Option`; `unwrap()` on that option still panics if the uniqueness assumption
+was wrong, but it no longer needs `Node<T>: Debug`.
+
+Rather than deriving `Debug` just for this error path, let's convert the
+`Result` to an `Option` with `ok`:
 
 ```rust ,ignore
 Rc::try_unwrap(old_head).ok().unwrap().into_inner().elem

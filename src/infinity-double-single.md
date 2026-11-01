@@ -49,7 +49,7 @@ impl<T> Stack<T> {
 
     pub fn push(&mut self, elem: T) {
         let new_node = Box::new(Node {
-            elem: elem,
+            elem,
             next: self.head.take(),
         });
 
@@ -65,15 +65,11 @@ impl<T> Stack<T> {
     }
 
     pub fn peek(&self) -> Option<&T> {
-        self.head.as_ref().map(|node| {
-            &node.elem
-        })
+        self.head.as_ref().map(|node| &node.elem)
     }
 
     pub fn peek_mut(&mut self) -> Option<&mut T> {
-        self.head.as_mut().map(|node| {
-            &mut node.elem
-        })
+        self.head.as_mut().map(|node| &mut node.elem)
     }
 }
 
@@ -92,7 +88,7 @@ And just rework `push` and `pop` a bit:
 ```rust ,ignore
 pub fn push(&mut self, elem: T) {
     let new_node = Box::new(Node {
-        elem: elem,
+        elem,
         next: None,
     });
 

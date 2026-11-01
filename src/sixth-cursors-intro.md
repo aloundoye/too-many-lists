@@ -21,9 +21,9 @@ Hey, we already have iterators! Can we use them for this? Kind of... but one of 
 
 ```rust ,ignore
 let mut list = ...;
-let iter = list.iter_mut();
-let elem1 = list.next();
-let elem2 = list.next();
+let mut iter = list.iter_mut();
+let elem1 = iter.next();
+let elem2 = iter.next();
 
 if elem1 == elem2 { ... }
 ```

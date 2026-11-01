@@ -15,7 +15,10 @@ impl<T> LinkedList<T> {
 }
 ```
 
-PhantomData is a weird type with no fields so you just make one by, saying its type name. *shrug*
+`PhantomData<T>` has no run-time data. As the layout chapter explained, its
+chosen type parameter tells the compiler how this list relates to `T`; here
+`PhantomData<T>` marks that the list owns `T` values through its allocated
+nodes. The marker does not store or point to a value. *shrug*
 
 ```rust ,ignore
 pub fn push_front(&mut self, elem: T) {
@@ -87,8 +90,8 @@ pub fn pop_front(&mut self) -> Option<T> {
         // because everything is Copy and there are no dtors that will
         // run if we mess up... right? :) Riiiight? :)))
         self.front.map(|node| {
-            // Bring the Box back to life so we can move out its value and
-            // Drop it (Box continues to magically understand this for us).
+            // Rebuild the owning Box from the raw pointer. This transfers
+            // ownership of the allocation back to Box.
             let boxed_node = Box::from_raw(node.as_ptr());
             let result = boxed_node.elem;
 
@@ -105,7 +108,8 @@ pub fn pop_front(&mut self) -> Option<T> {
 
             self.len -= 1;
             result
-            // Box gets implicitly freed here, knows there is no T.
+            // When boxed_node leaves scope, Rust drops its remaining fields
+            // and frees the node allocation. The moved element is returned.
         })
     }
 }

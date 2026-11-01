@@ -9,7 +9,7 @@ too:
 impl<T> Node<T> {
     fn new(elem: T) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Node {
-            elem: elem,
+            elem,
             prev: None,
             next: None,
         }))
@@ -41,10 +41,13 @@ empty lists. Most operations will only touch the `head` or `tail` pointer.
 However when transitioning to or from the empty list, we need to edit
 *both* at once.
 
-An easy way for us to validate if our methods make sense is if we maintain
-the following invariant: each node should have exactly two pointers to it.
-Each node in the middle of the list is pointed at by its predecessor and
-successor, while the nodes on the ends are pointed to by the list itself.
+An easy way to validate our methods is to track the two *structural owners*
+that keep each node alive in a stable list. A middle node is owned by its
+predecessor's `next` link and its successor's `prev` link. An end node is owned
+by its neighbor and by the list's `head` or `tail`; in a one-node list, `head`
+and `tail` own it. Temporary `Rc::clone` calls can make the actual strong
+reference count higher while an operation is running. The invariant is about
+the finished list structure, not every intermediate count.
 
 Let's take a crack at it:
 
